@@ -4,9 +4,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using AspNet.Security.OAuth.BattleNet;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
 
 namespace PhrasingWeb
 {
@@ -17,8 +21,15 @@ namespace PhrasingWeb
             var builder = new ConfigurationBuilder()
                 .SetBasePath(env.ContentRootPath)
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
-                .AddEnvironmentVariables();
+                .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true);
+                
+            if (env.IsDevelopment())
+            {
+                // For more details on using the user secret store see http://go.microsoft.com/fwlink/?LinkID=532709
+                builder.AddUserSecrets();
+            }    
+            
+            builder.AddEnvironmentVariables();
             Configuration = builder.Build();
         }
 
@@ -27,6 +38,9 @@ namespace PhrasingWeb
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddAuthentication(options => {
+                options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            });
             // Add framework services.
             services.AddMvc();
         }
@@ -48,6 +62,19 @@ namespace PhrasingWeb
             }
 
             app.UseStaticFiles();
+
+             app.UseCookieAuthentication(new CookieAuthenticationOptions {
+                AutomaticAuthenticate = true,
+                AutomaticChallenge = true,
+                LoginPath = new PathString("/signin"),
+                LogoutPath = new PathString("/signout")
+            });
+
+            app.UseBattleNetAuthentication(options => {
+              options.ClientId = Configuration["BattleNetClientId"];
+              options.ClientSecret = Configuration["BattleNetClientSecret"];
+              options.Scope.Add("wow.profile");
+            });
 
             app.UseMvc(routes =>
             {
